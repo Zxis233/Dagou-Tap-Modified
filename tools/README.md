@@ -21,7 +21,7 @@ python tools/find_piano_minimax.py
 node tools/build_audio_data.mjs
 node tools/verify_runtime_mapping.mjs
 node tools/verify_interaction_queue.mjs
-node tools/verify_toy_cloud_flow.mjs
+node tools/verify_local_settings.mjs
 ```
 
 第一条命令会直接分析网页实际使用的音频，其中哈基米运行时键 `ha / ji / mi`
@@ -48,16 +48,7 @@ node tools/verify_toy_cloud_flow.mjs
 长音的第三音节换调也进入该队列，只在当前纹理上切换播放速率而不重新播放
 开头；关闭节奏吸附后则验证每次输入都按实际按下时间立即发声且不去重。
 
-`verify_toy_cloud_flow.mjs` 会用模拟 Toy SDK 验证作者视频 BV 号到 aid 的转换、用户投币状态、
-启动与锁定项点击时的实时复查、投币解锁提示，以及视频跳转不会自行解锁或写入云端的行为。
-它也覆盖红点与 `NEW` 持久化、站外视频直接打开但不解锁，以及钢琴模式、八度切换、起始八度、
-节奏吸附和网格显示的默认值、云端恢复/写入，连续切档只保留最新写入，以及云存储
-不可用时以默认值启动、仍允许当前页面内切换的本地降级行为。
-
-线上投币检查错误 ID：`COIN-E01` 表示 Toy 环境或能力不可用；`COIN-A01`–`A04`
-表示作者视频请求、响应、目标条目或 aid 异常；`COIN-U01`–`U04` 表示用户互动请求、
-响应、目标条目或 `coinCount` 异常；`COIN-X01` 表示未分类异常。页面提示与控制台
-`[大狗Tap][错误ID]` 日志使用同一个编号。
+本地设置与全功能开放的回归检查：先运行 `npm install --prefix tools/tmp --no-save playwright`，再运行 `node tools/verify_local_settings.mjs`（需要已安装 Microsoft Edge）。覆盖全部音效、帝皇形象、设置刷新恢复和存储不可用时的降级。
 
 ## 透明角色循环动画
 
@@ -75,8 +66,8 @@ node tools\build_character_animation.mjs `
   --source-directory 'M:\Videos\输出\donghaidihuang_透明背景'
 ```
 
-默认输出到 `Image/donghaidihuang_atlas.webp`。页面只会在首次选择哈基米后
-后台请求该文件，不会增加首页的初始图片下载量。运行时不依赖图片自身计时，
+默认输出到 `Image/donghaidihuang_atlas.webp`。页面只会在首次选择帝皇形象时
+请求该文件，不会增加首页的初始图片下载量。运行时不依赖图片自身计时，
 而是按 Web Audio 时钟计算当前帧：第 0 帧固定在重音点，108 帧刚好覆盖
 `9 × 12` 个节拍子帧。切换到帝皇时会等到最近的拍头从第 0 帧进入，
 此后每九拍严格回到开头且不会累积漂移。

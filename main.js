@@ -37,8 +37,6 @@ let bgmMuted = false;
 let sfxMuted = false;
 const performanceSettings = { ...DEFAULT_PERFORMANCE_SETTINGS };
 let performanceSettingsSaving = false;
-let pendingPianoOctaveCloudValue = null;
-let pianoOctaveCloudWriteRunning = false;
 
 let startTime = 0;        // 第 0 步对应的 audio 时间
 let nextNoteTime = 0;     // 调度器下一个音符时间
@@ -162,12 +160,8 @@ let lastCommittedInputTime = -Infinity;
 const pointers = new Map();// pointerId -> { zone, voice, pendingEntryId, lastX, lastY }
 const CONTROLS_IDLE_MS = 2000;
 const CONTROLS_HOVER_IDLE_MS = 250;
-const CREATOR_MID = '357762853';
-const CREATOR_URL = `https://space.bilibili.com/${CREATOR_MID}`;
-const FEATURED_BVID = 'BV1kNKU6REBg';
-const FEATURED_VIDEO_URL = `https://www.bilibili.com/video/${FEATURED_BVID}/`;
 const NAVIGATION_MUTE_KEY = 'dagou-navigation-muted';
-const TOY_CLOUD_KEYS = Object.freeze({
+const LOCAL_STORAGE_KEYS = Object.freeze({
   settingsSeen: 'dagou_settings_seen_v1',
   dingdongNewSeen: 'dagou_dingdong_new_seen_v1',
   hajimiNewSeen: 'dagou_hajimi_new_seen_v1',
@@ -177,18 +171,7 @@ const TOY_CLOUD_KEYS = Object.freeze({
   rhythmSnap: 'dagou_rhythm_snap_v1',
   showGrid: 'dagou_show_grid_v1',
 });
-const TOY_CLOUD_KEY_LIST = Object.freeze(Object.values(TOY_CLOUD_KEYS));
-const TOY_REQUIRED_ABILITIES = Object.freeze([
-  'getAuthorVideos',
-  'getVideoUserActions',
-  'navigate',
-]);
-const TOY_CLOUD_ABILITIES = Object.freeze([
-  'getCloudStorage',
-  'setCloudStorage',
-]);
-const VIDEO_UNLOCK_ITEM_IDS = new Set(['dingdong', 'hajimi']);
-const LOCKED_SFX_IDS = new Set(['dingdong']);
+const NEW_SFX_IDS = new Set(['dingdong', 'hajimi']);
 let controlsIdleTimer = 0;
 let navigationMuted = false;
 
@@ -226,15 +209,6 @@ const updateDot = document.getElementById('update-dot');
 const settingsOverlay = document.getElementById('settings-overlay');
 const settingsPanel = document.getElementById('settings-panel');
 const settingsClose = document.getElementById('settings-close');
-const unlockConfirmOverlay = document.getElementById('unlock-confirm-overlay');
-const unlockConfirmDialog = document.getElementById('unlock-confirm-dialog');
-const unlockConfirmTitle = document.getElementById('unlock-confirm-title');
-const unlockConfirmMessage = document.getElementById('unlock-confirm-message');
-const unlockConfirmCancel = document.getElementById('unlock-confirm-cancel');
-const unlockConfirmSubmit = document.getElementById('unlock-confirm-submit');
-const authorHomeButton = document.getElementById('author-home-button');
-const videoCard = document.getElementById('video-card');
-const videoPlay = videoCard.querySelector('.video-play');
 const sfxOptions = [...document.querySelectorAll('.sfx-option')];
 const hajimiOptionImage = document.getElementById('hajimi-option-image');
 const hajimiSkinSwitcher = document.getElementById('hajimi-skin-switcher');
@@ -251,7 +225,7 @@ const octaveSwitchingSetting = document.getElementById('octave-switching-setting
 const performanceSettingsStatus = document.getElementById(
   'performance-settings-status'
 );
-const toyNotice = document.getElementById('toy-notice');
+const notice = document.getElementById('app-notice');
 const authorLink = document.getElementById('author-link');
 const reduceUiMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -376,7 +350,6 @@ function updateUiRhythm(beatPosition) {
     setRhythmScale(sfxToggle, 0, 0.075);
     setRhythmScale(settingsButton, 0, 0.075);
     setRhythmScale(updateDot, 0, 0.4);
-    setRhythmScale(videoPlay, 0, 0.12);
     authorLink.style.setProperty('--author-rhythm-scale', '1');
     authorLink.style.setProperty('--author-lift', '0px');
     updateAuthorNameLetters(-1, 0);
@@ -402,7 +375,6 @@ function updateUiRhythm(beatPosition) {
   setRhythmScale(sfxToggle, sfxPulse, 0.075);
   setRhythmScale(settingsButton, pulse, 0.075);
   setRhythmScale(updateDot, pulse, 0.4);
-  setRhythmScale(videoPlay, pulse, 0.12);
   authorLink.style.setProperty(
     '--author-rhythm-scale',
     (1 + pulse * 0.032).toFixed(4)
@@ -412,57 +384,6 @@ function updateUiRhythm(beatPosition) {
     `${(-pulse * 1.4).toFixed(3)}px`
   );
   updateAuthorNameLetters(beatIndex, pulse);
-}
-
-async function navigateWithToy(type, id, fallbackUrl, label) {
-  try {
-    if (window.toy && typeof window.toy.navigate === 'function') {
-      await window.toy.navigate({ type, id });
-      return;
-    }
-  } catch (error) {
-    console.warn(`[大狗Tap] Toy ${label}导航不可用，改用浏览器跳转。`, error);
-  }
-  window.location.assign(fallbackUrl);
-}
-
-function openCreatorSpace() {
-  setNavigationMute(true);
-  return navigateWithToy('space', CREATOR_MID, CREATOR_URL, '主页');
-}
-
-let videoNavigationPending = false;
-let featuredVideoAid = null;
-let coinUnlockCheckPromise = null;
-
-async function openFeaturedVideo() {
-  if (videoNavigationPending) return;
-  videoNavigationPending = true;
-  videoCard.setAttribute('aria-busy', 'true');
-
-  try {
-    const state = await toyStateReady;
-    if (!state.environmentAvailable || !state.toy) {
-      setNavigationMute(true);
-      window.location.assign(FEATURED_VIDEO_URL);
-      return;
-    }
-
-    try {
-      setNavigationMute(true);
-      await state.toy.navigate({ type: 'video', id: FEATURED_BVID });
-    } catch (error) {
-      setNavigationMute(false);
-      console.warn('[大狗Tap] Toy 视频导航失败。', error);
-      showToyNotice(
-        '视频打开失败，请稍后重试。多次失败建议更新APP。',
-        true
-      );
-    }
-  } finally {
-    videoNavigationPending = false;
-    videoCard.removeAttribute('aria-busy');
-  }
 }
 
 for (const button of topControls.querySelectorAll('button')) {
@@ -487,17 +408,12 @@ for (const button of topControls.querySelectorAll('button')) {
 musicToggle.addEventListener('click', toggleMusic);
 sfxToggle.addEventListener('click', toggleSoundEffects);
 
-/* ---------- 设置菜单与 Toy 云状态 ---------- */
+/* ---------- 设置菜单与本地存储 ---------- */
 let settingsOpen = false;
-let unlockConfirmOpen = false;
-let unlockConfirmTrigger = null;
-let toyNoticeTimer = 0;
-const toyCloudState = {
-  toy: null,
+let noticeTimer = 0;
+const localSettingsState = {
   initialized: false,
-  environmentAvailable: false,
-  cloudReadable: false,
-  sfxUnlocked: false,
+  storageAvailable: false,
   settingsSeen: false,
   newSeen: {
     dingdong: false,
@@ -510,21 +426,21 @@ const toyCloudState = {
   },
 };
 const PERFORMANCE_SETTING_KEYS = Object.freeze({
-  pianoMode: TOY_CLOUD_KEYS.pianoMode,
-  octaveSwitching: TOY_CLOUD_KEYS.octaveSwitching,
-  rhythmSnap: TOY_CLOUD_KEYS.rhythmSnap,
-  showGrid: TOY_CLOUD_KEYS.showGrid,
+  pianoMode: LOCAL_STORAGE_KEYS.pianoMode,
+  octaveSwitching: LOCAL_STORAGE_KEYS.octaveSwitching,
+  rhythmSnap: LOCAL_STORAGE_KEYS.rhythmSnap,
+  showGrid: LOCAL_STORAGE_KEYS.showGrid,
 });
 
-function showToyNotice(message, isError = false) {
-  clearTimeout(toyNoticeTimer);
-  toyNotice.textContent = message;
-  toyNotice.classList.toggle('is-error', isError);
-  toyNotice.classList.add('is-visible');
-  toyNotice.setAttribute('aria-hidden', 'false');
-  toyNoticeTimer = setTimeout(() => {
-    toyNotice.classList.remove('is-visible');
-    toyNotice.setAttribute('aria-hidden', 'true');
+function showNotice(message, isError = false) {
+  clearTimeout(noticeTimer);
+  notice.textContent = message;
+  notice.classList.toggle('is-error', isError);
+  notice.classList.add('is-visible');
+  notice.setAttribute('aria-hidden', 'false');
+  noticeTimer = setTimeout(() => {
+    notice.classList.remove('is-visible');
+    notice.setAttribute('aria-hidden', 'true');
   }, 4800);
 }
 
@@ -665,34 +581,30 @@ function resetPerformanceSettingsToDefaults() {
   replacePerformanceSettings(DEFAULT_PERFORMANCE_SETTINGS);
 }
 
-function markToyCloudUnavailable(state = toyCloudState) {
-  state.cloudReadable = false;
-  renderToyCloudState();
-}
-
-function readCloudPerformanceSettings(cloud) {
+function readLocalPerformanceSettings(cloud) {
   const settings = { ...DEFAULT_PERFORMANCE_SETTINGS };
   for (const [settingName, cloudKey] of Object.entries(PERFORMANCE_SETTING_KEYS)) {
     const value = cloud[cloudKey];
     if (value === '1') settings[settingName] = true;
     else if (value === '0') settings[settingName] = false;
   }
-  const cloudOctaveStart = Number(cloud[TOY_CLOUD_KEYS.pianoOctaveStart]);
+  const cloudOctaveStart = Number(cloud[LOCAL_STORAGE_KEYS.pianoOctaveStart]);
   const validCloudOctaveStart = Number.isInteger(cloudOctaveStart) &&
     cloudOctaveStart >= PIANO_OCTAVE_MIN &&
     cloudOctaveStart <= PIANO_OCTAVE_MAX;
   settings.pianoOctaveStart = validCloudOctaveStart
     ? cloudOctaveStart
     : PIANO_DEFAULT_OCTAVE_START;
-  if (!validCloudOctaveStart) settings.octaveSwitching = false;
+  if (!validCloudOctaveStart && cloud[LOCAL_STORAGE_KEYS.pianoOctaveStart] != null) {
+    settings.octaveSwitching = false;
+  }
   return settings;
 }
 
 function renderPerformanceSettings() {
-  const cloudAvailable =
-    toyCloudState.initialized &&
-    toyCloudState.environmentAvailable &&
-    toyCloudState.cloudReadable;
+  const storageAvailable =
+    localSettingsState.initialized &&
+    localSettingsState.storageAvailable;
   octaveSwitchingSetting.hidden = !performanceSettings.pianoMode;
 
   for (const button of performanceSettingButtons) {
@@ -701,413 +613,116 @@ function renderPerformanceSettings() {
       'aria-checked',
       String(performanceSettings[settingName] === true)
     );
-    button.disabled = !toyCloudState.initialized || performanceSettingsSaving;
+    button.disabled = !localSettingsState.initialized || performanceSettingsSaving;
   }
 
   performanceSettingsStatus.classList.toggle(
     'is-error',
-    toyCloudState.initialized && !cloudAvailable
+    localSettingsState.initialized && !storageAvailable
   );
   if (performanceSettingsSaving) {
-    performanceSettingsStatus.textContent = '正在保存到哔哩哔哩云端…';
-  } else if (!toyCloudState.initialized) {
-    performanceSettingsStatus.textContent = '正在读取哔哩哔哩云端设置…';
-  } else if (cloudAvailable) {
-    performanceSettingsStatus.textContent = '设置已通过哔哩哔哩云端同步';
+    performanceSettingsStatus.textContent = '正在保存到当前浏览器…';
+  } else if (!localSettingsState.initialized) {
+    performanceSettingsStatus.textContent = '正在读取本地设置…';
+  } else if (storageAvailable) {
+    performanceSettingsStatus.textContent = '设置自动保存在当前浏览器';
   } else {
-    performanceSettingsStatus.textContent = '云存储不可用，本次设置仅在当前页面有效';
+    performanceSettingsStatus.textContent = '本地存储不可用，本次设置仅在当前页面有效';
   }
   renderOctaveControls();
 }
 
-function renderToyCloudState() {
-  const showUpdateDot = !toyCloudState.settingsSeen;
+function renderSettingsState() {
+  const showUpdateDot = !localSettingsState.settingsSeen;
   updateDot.classList.toggle('is-hidden', !showUpdateDot);
   topControls.classList.toggle('has-update-dot', showUpdateDot);
 
   for (const option of sfxOptions) {
     const sfxId = option.dataset.sfx;
-    const isCloudLockedOption = LOCKED_SFX_IDS.has(sfxId);
-    const locked = isCloudLockedOption && !toyCloudState.sfxUnlocked;
-    option.classList.toggle('is-locked', locked);
-
-    if (VIDEO_UNLOCK_ITEM_IDS.has(sfxId)) {
+    if (NEW_SFX_IDS.has(sfxId)) {
       const label = sfxId === 'dingdong' ? '叮咚鸡' : '哈基米';
-      option.setAttribute('aria-label', locked ? `${label}，未解锁` : label);
-      option.classList.toggle('is-new-hidden', toyCloudState.newSeen[sfxId]);
+      option.setAttribute('aria-label', label);
+      option.classList.toggle('is-new-hidden', localSettingsState.newSeen[sfxId]);
     }
   }
   renderHajimiCharacterControl();
   renderPerformanceSettings();
 }
 
-async function detectToyEnvironment() {
-  const toy = window.toy;
-  if (
-    !toy ||
-    typeof toy.isSupport !== 'function' ||
-    TOY_REQUIRED_ABILITIES.some((ability) => typeof toy[ability] !== 'function')
-  ) {
-    return null;
-  }
-
+function initializeLocalSettings() {
   try {
-    const support = await Promise.all(
-      TOY_REQUIRED_ABILITIES.map((ability) => toy.isSupport(ability))
-    );
-    if (support.some((available) => available !== true)) return null;
-
-    return toy;
-  } catch (error) {
-    console.warn('[大狗Tap] Toy 站内环境检测失败。', error);
-    return null;
-  }
-}
-
-/* 投币解锁错误 ID：E=运行环境，A=作者视频/BV 转 aid，U=用户互动，X=未知。 */
-function createCoinUnlockError(errorId, message, cause = null, diagnostics = null) {
-  const error = new Error(message);
-  error.coinUnlockErrorId = errorId;
-  if (cause) error.cause = cause;
-  if (diagnostics) error.coinUnlockDiagnostics = diagnostics;
-  return error;
-}
-
-function getCoinUnlockErrorId(error) {
-  return typeof error?.coinUnlockErrorId === 'string'
-    ? error.coinUnlockErrorId
-    : 'COIN-X01';
-}
-
-function normalizeVideoResponseItem(item) {
-  if (!item || typeof item !== 'object') return null;
-  const payload = item.data && typeof item.data === 'object' && !Array.isArray(item.data)
-    ? item.data
-    : item;
-  return { item, payload };
-}
-
-function isSuccessfulVideoBatchResponse(response) {
-  return Boolean(
-    response &&
-    (response.status === undefined || response.status === 'ok') &&
-    Array.isArray(response.items)
-  );
-}
-
-/* 批量接口保证结果与请求顺序一致。线上部分版本的互动条目不回传 aid，
-   因此单项请求只在“未提供标识”时按第 0 项回退；显式返回了错误标识则拒绝。 */
-function findSuccessfulVideoItem(response, query = null) {
-  const aid = query?.aid ?? null;
-  const bvid = query?.bvid ?? null;
-  if (!isSuccessfulVideoBatchResponse(response)) return null;
-  const candidates = response.items
-    .filter((item) => item && (item.status === undefined || item.status === 'ok'))
-    .map(normalizeVideoResponseItem)
-    .filter(Boolean);
-  const key = aid !== null ? 'aid' : 'bvid';
-  const expected = aid !== null ? aid : bvid;
-  const exact = candidates.find(({ payload }) => payload?.[key] === expected);
-  if (exact) return exact.payload;
-  if (response.items.length !== 1 || candidates.length !== 1) return null;
-  const only = candidates[0].payload;
-  return only?.[key] === undefined || only?.[key] === null ? only : null;
-}
-
-async function resolveFeaturedVideoAid(toy) {
-  if (Number.isSafeInteger(featuredVideoAid) && featuredVideoAid > 0) {
-    return featuredVideoAid;
-  }
-
-  let response;
-  try {
-    response = await toy.getAuthorVideos({
-      videos: [{ bvid: FEATURED_BVID }],
-    });
-  } catch (error) {
-    throw createCoinUnlockError('COIN-A01', '作者视频请求失败', error);
-  }
-  if (!isSuccessfulVideoBatchResponse(response)) {
-    throw createCoinUnlockError('COIN-A02', '作者视频响应无效', null, {
-      responseStatus: response?.status ?? null,
-      itemsType: Array.isArray(response?.items) ? 'array' : typeof response?.items,
-    });
-  }
-  const item = findSuccessfulVideoItem(response, { bvid: FEATURED_BVID });
-  if (!item) {
-    throw createCoinUnlockError('COIN-A03', '目标开发视频不可用', null, {
-      itemStatuses: response.items.map((entry) => entry?.status ?? null),
-      itemKeys: response.items.map((entry) => Object.keys(entry ?? {})),
-    });
-  }
-  if (!Number.isSafeInteger(item?.aid) || item.aid <= 0) {
-    throw createCoinUnlockError('COIN-A04', '目标开发视频的 aid 无效', null, {
-      aid: item?.aid ?? null,
-      aidType: typeof item?.aid,
-      itemKeys: Object.keys(item ?? {}),
-    });
-  }
-  featuredVideoAid = item.aid;
-  return featuredVideoAid;
-}
-
-function refreshCoinUnlock(state = toyCloudState) {
-  if (coinUnlockCheckPromise) return coinUnlockCheckPromise;
-
-  coinUnlockCheckPromise = (async () => {
-    if (!state.environmentAvailable || !state.toy) {
-      return { checked: false, unlocked: false };
+    const cloud = {};
+    for (const key of Object.values(LOCAL_STORAGE_KEYS)) {
+      cloud[key] = window.localStorage.getItem(key);
     }
-
-    try {
-      const aid = await resolveFeaturedVideoAid(state.toy);
-      let response;
-      try {
-        response = await state.toy.getVideoUserActions({ aids: [aid] });
-      } catch (error) {
-        throw createCoinUnlockError('COIN-U01', '用户互动状态请求失败', error);
-      }
-      if (!isSuccessfulVideoBatchResponse(response)) {
-        throw createCoinUnlockError('COIN-U02', '用户互动状态响应无效', null, {
-          responseStatus: response?.status ?? null,
-          itemsType: Array.isArray(response?.items) ? 'array' : typeof response?.items,
-        });
-      }
-      const item = findSuccessfulVideoItem(response, { aid });
-      if (!item) {
-        throw createCoinUnlockError('COIN-U03', '目标视频互动条目不可用', null, {
-          requestedAid: aid,
-          itemStatuses: response.items.map((entry) => entry?.status ?? null),
-          itemKeys: response.items.map((entry) => Object.keys(entry ?? {})),
-        });
-      }
-      if (!Number.isInteger(item.coinCount) || item.coinCount < 0) {
-        throw createCoinUnlockError('COIN-U04', '目标视频投币数量无效', null, {
-          coinCount: item.coinCount ?? null,
-          coinCountType: typeof item.coinCount,
-          itemKeys: Object.keys(item),
-        });
-      }
-
-      state.sfxUnlocked = item.coinCount >= 1;
-      renderToyCloudState();
-      return { checked: true, unlocked: state.sfxUnlocked };
-    } catch (error) {
-      const errorId = getCoinUnlockErrorId(error);
-      console.warn(`[大狗Tap][${errorId}] 开发视频投币状态读取失败。`, error);
-      state.sfxUnlocked = false;
-      renderToyCloudState();
-      return { checked: false, unlocked: false, errorId };
-    }
-  })().finally(() => {
-    coinUnlockCheckPromise = null;
-  });
-
-  return coinUnlockCheckPromise;
-}
-
-async function detectToyCloudSupport(toy) {
-  if (TOY_CLOUD_ABILITIES.some((ability) => typeof toy[ability] !== 'function')) {
-    return false;
-  }
-  const support = await Promise.all(
-    TOY_CLOUD_ABILITIES.map((ability) => toy.isSupport(ability))
-  );
-  return support.every((available) => available === true);
-}
-
-async function initializeToyCloudState() {
-  const toy = await detectToyEnvironment();
-  if (!toy) {
-    toyCloudState.initialized = true;
+    replacePerformanceSettings(readLocalPerformanceSettings(cloud));
+    localSettingsState.settingsSeen = cloud[LOCAL_STORAGE_KEYS.settingsSeen] === '1';
+    localSettingsState.newSeen.dingdong = cloud[LOCAL_STORAGE_KEYS.dingdongNewSeen] === '1';
+    localSettingsState.newSeen.hajimi = cloud[LOCAL_STORAGE_KEYS.hajimiNewSeen] === '1';
+    localSettingsState.storageAvailable = true;
+  } catch (error) {
     resetPerformanceSettingsToDefaults();
-    renderToyCloudState();
-    return toyCloudState;
+    console.warn('[大狗Tap] 本地设置读取失败。', error);
   }
-
-  toyCloudState.toy = toy;
-  toyCloudState.environmentAvailable = true;
-  const coinUnlockReady = refreshCoinUnlock(toyCloudState);
-
-  try {
-    if (!(await detectToyCloudSupport(toy))) {
-      throw new Error('Toy 云存储能力不可用');
-    }
-    const cloud = await toy.getCloudStorage(TOY_CLOUD_KEY_LIST);
-    if (!cloud || typeof cloud !== 'object') {
-      throw new Error('Toy 云存储返回值无效');
-    }
-    toyCloudState.cloudReadable = true;
-    replacePerformanceSettings(readCloudPerformanceSettings(cloud));
-
-    if (!toyCloudState.locallyChanged.settingsSeen) {
-      toyCloudState.settingsSeen =
-        cloud[TOY_CLOUD_KEYS.settingsSeen] === '1';
-    }
-    if (!toyCloudState.locallyChanged.dingdong) {
-      toyCloudState.newSeen.dingdong =
-        cloud[TOY_CLOUD_KEYS.dingdongNewSeen] === '1';
-    }
-    if (!toyCloudState.locallyChanged.hajimi) {
-      toyCloudState.newSeen.hajimi =
-        cloud[TOY_CLOUD_KEYS.hajimiNewSeen] === '1';
-    }
-  } catch (error) {
-    // 读取不可用时，三个演奏设置也必须整体保持默认值。
-    toyCloudState.cloudReadable = false;
-    resetPerformanceSettingsToDefaults();
-    console.warn('[大狗Tap] Toy 云状态读取失败。', error);
-  }
-
-  await coinUnlockReady;
-  toyCloudState.initialized = true;
-  renderToyCloudState();
-  return toyCloudState;
+  localSettingsState.initialized = true;
+  renderSettingsState();
 }
 
 function persistSeenState(items) {
-  void toyStateReady.then(async (state) => {
-    if (!state.environmentAvailable || !state.cloudReadable || !state.toy) return;
-
-    try {
-      await state.toy.setCloudStorage(items);
-    } catch (error) {
-      markToyCloudUnavailable(state);
-      console.warn('[大狗Tap] 提醒状态写入失败。', error);
-      showToyNotice(
-        '状态保存失败，请确认已登录哔哩哔哩后刷新重试。',
-        true
-      );
+  try {
+    for (const [key, value] of Object.entries(items)) {
+      window.localStorage.setItem(key, value);
     }
-  });
+    localSettingsState.storageAvailable = true;
+  } catch (error) {
+    localSettingsState.storageAvailable = false;
+    console.warn('[大狗Tap] 本地设置保存失败。', error);
+    showNotice('本地存储不可用，本次设置仅在当前页面有效。');
+  }
+  renderSettingsState();
 }
 
 function markSettingsSeen() {
-  if (toyCloudState.settingsSeen) return;
-  toyCloudState.settingsSeen = true;
-  toyCloudState.locallyChanged.settingsSeen = true;
-  renderToyCloudState();
-  persistSeenState({ [TOY_CLOUD_KEYS.settingsSeen]: '1' });
+  if (localSettingsState.settingsSeen) return;
+  localSettingsState.settingsSeen = true;
+  localSettingsState.locallyChanged.settingsSeen = true;
+  renderSettingsState();
+  persistSeenState({ [LOCAL_STORAGE_KEYS.settingsSeen]: '1' });
 }
 
 function markSfxNewSeen(sfxId) {
-  if (!VIDEO_UNLOCK_ITEM_IDS.has(sfxId) || toyCloudState.newSeen[sfxId]) return;
-  toyCloudState.newSeen[sfxId] = true;
-  toyCloudState.locallyChanged[sfxId] = true;
-  renderToyCloudState();
+  if (!NEW_SFX_IDS.has(sfxId) || localSettingsState.newSeen[sfxId]) return;
+  localSettingsState.newSeen[sfxId] = true;
+  localSettingsState.locallyChanged[sfxId] = true;
+  renderSettingsState();
   const key = sfxId === 'dingdong'
-    ? TOY_CLOUD_KEYS.dingdongNewSeen
-    : TOY_CLOUD_KEYS.hajimiNewSeen;
+    ? LOCAL_STORAGE_KEYS.dingdongNewSeen
+    : LOCAL_STORAGE_KEYS.hajimiNewSeen;
   persistSeenState({ [key]: '1' });
 }
 
 function markAllSfxNewSeen() {
   const items = {};
-  for (const sfxId of VIDEO_UNLOCK_ITEM_IDS) {
-    if (toyCloudState.newSeen[sfxId]) continue;
-    toyCloudState.newSeen[sfxId] = true;
-    toyCloudState.locallyChanged[sfxId] = true;
+  for (const sfxId of NEW_SFX_IDS) {
+    if (localSettingsState.newSeen[sfxId]) continue;
+    localSettingsState.newSeen[sfxId] = true;
+    localSettingsState.locallyChanged[sfxId] = true;
     const key = sfxId === 'dingdong'
-      ? TOY_CLOUD_KEYS.dingdongNewSeen
-      : TOY_CLOUD_KEYS.hajimiNewSeen;
+      ? LOCAL_STORAGE_KEYS.dingdongNewSeen
+      : LOCAL_STORAGE_KEYS.hajimiNewSeen;
     items[key] = '1';
   }
 
   if (Object.keys(items).length === 0) return;
-  renderToyCloudState();
+  renderSettingsState();
   persistSeenState(items);
 }
 
-async function requireToyUnlockContext() {
-  const state = await toyStateReady;
-  if (!state.environmentAvailable || !state.toy) {
-    showToyNotice(
-      '无法检查投币状态（错误ID：COIN-E01）。请在B站打开此页面或更新哔哩哔哩APP后重试。',
-      true
-    );
-    return null;
-  }
-  return state;
-}
-
-async function verifyCoinUnlockForTrigger(trigger) {
-  const state = await requireToyUnlockContext();
-  if (!state) return null;
-
-  trigger?.setAttribute('aria-busy', 'true');
-  try {
-    const result = await refreshCoinUnlock(state);
-    if (!result.checked) {
-      showToyNotice(
-        `投币状态读取失败（错误ID：${result.errorId ?? 'COIN-X01'}）。请确认已登录哔哩哔哩后重试，多次失败建议更新APP。`,
-        true
-      );
-      return null;
-    }
-    return state;
-  } finally {
-    trigger?.removeAttribute('aria-busy');
-  }
-}
-
-function openUnlockConfirm(unlockItem, trigger) {
-  if (unlockConfirmOpen || videoNavigationPending) return;
-  const itemLabel = unlockItem === 'emperor'
-    ? '哈基米（帝皇）'
-    : '叮咚鸡';
-  unlockConfirmOpen = true;
-  unlockConfirmTrigger = trigger ?? null;
-  unlockConfirmTitle.textContent = `解锁${itemLabel}`;
-  unlockConfirmMessage.textContent =
-    `${itemLabel}尚未解锁。给开发视频投币即可同时解锁叮咚鸡和哈基米（帝皇），是否现在前往投币？`;
-  settingsOverlay.inert = true;
-  unlockConfirmOverlay.inert = false;
-  unlockConfirmOverlay.classList.add('is-open');
-  unlockConfirmOverlay.setAttribute('aria-hidden', 'false');
-  unlockConfirmSubmit.focus({ preventScroll: true });
-}
-
-function closeUnlockConfirm(restoreFocus = true) {
-  if (!unlockConfirmOpen || videoNavigationPending) return;
-  const trigger = unlockConfirmTrigger;
-  unlockConfirmOpen = false;
-  unlockConfirmTrigger = null;
-  unlockConfirmOverlay.inert = true;
-  unlockConfirmOverlay.classList.remove('is-open');
-  unlockConfirmOverlay.setAttribute('aria-hidden', 'true');
-  if (settingsOpen) settingsOverlay.inert = false;
-  if (restoreFocus && settingsOpen) {
-    (trigger ?? settingsClose).focus({ preventScroll: true });
-  }
-}
-
-function setUnlockConfirmPending(pending) {
-  unlockConfirmCancel.disabled = pending;
-  unlockConfirmSubmit.disabled = pending;
-  unlockConfirmSubmit.textContent = pending ? '打开中…' : '前往视频投币';
-  if (pending) unlockConfirmSubmit.setAttribute('aria-busy', 'true');
-  else unlockConfirmSubmit.removeAttribute('aria-busy');
-}
-
-async function confirmUnlockFromVideo() {
-  if (!unlockConfirmOpen || videoNavigationPending) return;
-  setUnlockConfirmPending(true);
-  try {
-    await openFeaturedVideo();
-  } finally {
-    setUnlockConfirmPending(false);
-    closeUnlockConfirm();
-  }
-}
-
-/* 哈基米音效卡本身永不显示锁：皮肤切换收敛到独立的形象切换行，
-   帝皇的锁与 NEW 只挂在帝皇选项上，避免“哈基米被锁”的歧义。 */
 function renderHajimiCharacterControl() {
   const option = sfxOptions.find((item) => item.dataset.sfx === 'hajimi');
   if (!option) return;
 
   const isSelected = selectedSfxId === 'hajimi';
-  const emperorLocked = !toyCloudState.sfxUnlocked;
 
   hajimiSkinSwitcher.classList.toggle('is-open', isSelected);
   hajimiSkinSwitcher.setAttribute('aria-hidden', String(!isSelected));
@@ -1119,12 +734,11 @@ function renderHajimiCharacterControl() {
   hajimiSkinClassic.setAttribute('aria-checked', String(!hajimiAnimationEnabled));
   hajimiSkinEmperor.classList.toggle('is-active', hajimiAnimationEnabled);
   hajimiSkinEmperor.setAttribute('aria-checked', String(hajimiAnimationEnabled));
-  hajimiSkinEmperor.classList.toggle('is-locked', emperorLocked);
-  hajimiSkinEmperor.classList.toggle('is-new-hidden', toyCloudState.newSeen.hajimi);
-  hajimiSkinEmperorHint.textContent = emperorLocked ? '投币开发视频解锁' : '已解锁';
+  hajimiSkinEmperor.classList.toggle('is-new-hidden', localSettingsState.newSeen.hajimi);
+  hajimiSkinEmperorHint.textContent = '动态形象';
   hajimiSkinEmperor.setAttribute(
     'aria-label',
-    emperorLocked ? '哈基米帝皇形象，投币开发视频解锁' : '哈基米帝皇形象'
+    '哈基米帝皇形象'
   );
 
   hajimiOptionImage.src = isSelected && hajimiAnimationEnabled
@@ -1215,7 +829,7 @@ function setHajimiSkin(useEmperor) {
   if (useEmperor) {
     alignHajimiAnimationToBeat();
     ensureHajimiAnimationLoaded();
-    if (!hajimiAnimationReady) showToyNotice('正在加载东海帝皇动画…');
+    if (!hajimiAnimationReady) showNotice('正在加载东海帝皇动画…');
   }
   applyHajimiAnimationVisibility();
 }
@@ -1239,61 +853,24 @@ function selectSfxOption(option) {
   applyHajimiAnimationVisibility();
 }
 
-async function handleSfxOptionClick(option) {
-  const sfxId = option.dataset.sfx;
-  const requiresVideoUnlock = LOCKED_SFX_IDS.has(sfxId);
-  if (!requiresVideoUnlock) {
-    selectSfxOption(option);
-    return;
-  }
-
-  markSfxNewSeen(sfxId);
-  if (toyCloudState.sfxUnlocked) {
-    selectSfxOption(option);
-    return;
-  }
-
-  const state = await verifyCoinUnlockForTrigger(option);
-  if (!state) return;
-  if (!state.sfxUnlocked) {
-    openUnlockConfirm('dingdong', option);
-    return;
-  }
-
+function handleSfxOptionClick(option) {
+  markSfxNewSeen(option.dataset.sfx);
   selectSfxOption(option);
 }
 
-/* 形象切换行只在选中哈基米时可见可点：原皮随意换回；
-   帝皇未解锁时点击会复查投币并引导前往开发视频，绝不影响哈基米音效本身。 */
-async function handleSkinOptionClick(button) {
+function handleSkinOptionClick(button) {
   if (selectedSfxId !== 'hajimi') return;
-  if (button.dataset.skin !== 'emperor') {
-    setHajimiSkin(false);
-    return;
-  }
-
-  markSfxNewSeen('hajimi');
-  if (toyCloudState.sfxUnlocked) {
-    setHajimiSkin(true);
-    return;
-  }
-
-  const state = await verifyCoinUnlockForTrigger(button);
-  if (!state) return;
-  if (!state.sfxUnlocked) {
-    openUnlockConfirm('emperor', button);
-    return;
-  }
-
-  setHajimiSkin(true);
+  if (button.dataset.skin === 'emperor') markSfxNewSeen('hajimi');
+  setHajimiSkin(button.dataset.skin === 'emperor');
 }
 
 function resolveSfxSample(sample, sfxId = selectedSfxId) {
   return SFX_SAMPLE_SETS[sfxId]?.[sample] ?? sample;
 }
 
-renderToyCloudState();
-const toyStateReady = initializeToyCloudState();
+renderSettingsState();
+// Restore after all audio and keyboard declarations have initialized.
+queueMicrotask(initializeLocalSettings);
 
 dogAnimationAtlas.addEventListener('load', () => {
   hajimiAnimationReady = true;
@@ -1308,51 +885,17 @@ dogAnimationAtlas.addEventListener('error', () => {
   dogAnimationAtlas.removeAttribute('src');
   applyHajimiAnimationVisibility();
   if (wasWaitingForAnimation) {
-    showToyNotice('东海帝皇动画加载失败，请稍后重试。', true);
+    showNotice('东海帝皇动画加载失败，请稍后重试。', true);
   }
 });
 
-async function handlePerformanceSettingClick(button) {
-  if (performanceSettingsSaving) return;
+function handlePerformanceSettingClick(button) {
   const settingName = button.dataset.setting;
-  const cloudKey = PERFORMANCE_SETTING_KEYS[settingName];
-  if (!cloudKey) return;
-
-  const state = await toyStateReady;
+  const key = PERFORMANCE_SETTING_KEYS[settingName];
+  if (!key) return;
   const nextValue = !performanceSettings[settingName];
-  if (!state.environmentAvailable || !state.cloudReadable || !state.toy) {
-    replacePerformanceSettings({
-      ...performanceSettings,
-      [settingName]: nextValue,
-    });
-    renderToyCloudState();
-    showToyNotice('云存储不可用，本次设置仅在当前页面有效。');
-    return;
-  }
-
-  performanceSettingsSaving = true;
-  renderPerformanceSettings();
-  try {
-    await state.toy.setCloudStorage({
-      [cloudKey]: nextValue ? '1' : '0',
-    });
-    replacePerformanceSettings({
-      ...performanceSettings,
-      [settingName]: nextValue,
-    });
-  } catch (error) {
-    // 写入失败后降级为本地会话设置，保留用户刚刚选择的值。
-    markToyCloudUnavailable(state);
-    replacePerformanceSettings({
-      ...performanceSettings,
-      [settingName]: nextValue,
-    });
-    console.warn('[大狗Tap] 演奏设置写入失败。', error);
-    showToyNotice('云存储不可用，本次设置仅在当前页面有效。');
-  } finally {
-    performanceSettingsSaving = false;
-    renderToyCloudState();
-  }
+  replacePerformanceSettings({ ...performanceSettings, [settingName]: nextValue });
+  persistSeenState({ [key]: nextValue ? '1' : '0' });
 }
 
 for (const button of performanceSettingButtons) {
@@ -1361,39 +904,8 @@ for (const button of performanceSettingButtons) {
   });
 }
 
-async function flushPianoOctaveCloudWrite() {
-  const state = await toyStateReady;
-  if (!state.environmentAvailable || !state.cloudReadable || !state.toy) {
-    pendingPianoOctaveCloudValue = null;
-    pianoOctaveCloudWriteRunning = false;
-    return;
-  }
-
-  while (pendingPianoOctaveCloudValue !== null) {
-    const octave = pendingPianoOctaveCloudValue;
-    pendingPianoOctaveCloudValue = null;
-    try {
-      await state.toy.setCloudStorage({
-        [TOY_CLOUD_KEYS.pianoOctaveStart]: String(octave),
-      });
-    } catch (error) {
-      pendingPianoOctaveCloudValue = null;
-      markToyCloudUnavailable(state);
-      console.warn('[大狗Tap] 八度档位写入失败。', error);
-      showToyNotice('云存储不可用，本次八度仅在当前页面有效。');
-      break;
-    }
-  }
-
-  pianoOctaveCloudWriteRunning = false;
-  renderToyCloudState();
-}
-
-function queuePianoOctaveCloudWrite(octave) {
-  pendingPianoOctaveCloudValue = normalizePianoOctaveStart(octave);
-  if (pianoOctaveCloudWriteRunning) return;
-  pianoOctaveCloudWriteRunning = true;
-  void flushPianoOctaveCloudWrite();
+function savePianoOctave(octave) {
+  persistSeenState({ [LOCAL_STORAGE_KEYS.pianoOctaveStart]: String(normalizePianoOctaveStart(octave)) });
 }
 
 function shiftPianoOctave(direction) {
@@ -1410,8 +922,8 @@ function shiftPianoOctave(direction) {
   const previousSettings = { ...performanceSettings };
   performanceSettings.pianoOctaveStart = targetOctave;
   applyPerformanceSettings(previousSettings);
-  renderToyCloudState();
-  queuePianoOctaveCloudWrite(targetOctave);
+  renderSettingsState();
+  savePianoOctave(targetOctave);
   return true;
 }
 
@@ -1438,18 +950,12 @@ function openSettings() {
 
 function closeSettings() {
   if (!settingsOpen) return;
-  if (unlockConfirmOpen) closeUnlockConfirm(false);
   markAllSfxNewSeen();
   settingsOpen = false;
   settingsOverlay.inert = true;
   settingsOverlay.classList.remove('is-open');
   settingsOverlay.setAttribute('aria-hidden', 'true');
   settingsButton.focus({ preventScroll: true });
-}
-
-function handleAuthorHomeClick() {
-  if (!settingsOpen) return;
-  openCreatorSpace();
 }
 
 settingsButton.addEventListener('click', openSettings);
@@ -1462,25 +968,9 @@ for (const eventName of ['pointerdown', 'pointermove', 'pointerup', 'pointercanc
   settingsOverlay.addEventListener(eventName, (event) => event.stopPropagation());
 }
 settingsPanel.addEventListener('click', (event) => event.stopPropagation());
-unlockConfirmCancel.addEventListener('click', () => closeUnlockConfirm());
-unlockConfirmSubmit.addEventListener('click', () => {
-  void confirmUnlockFromVideo();
-});
-unlockConfirmOverlay.addEventListener('pointerdown', (event) => {
-  if (event.target === unlockConfirmOverlay) closeUnlockConfirm();
-});
-for (const eventName of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
-  unlockConfirmOverlay.addEventListener(eventName, (event) => event.stopPropagation());
-}
-unlockConfirmDialog.addEventListener('click', (event) => event.stopPropagation());
 window.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape') return;
-  if (unlockConfirmOpen) closeUnlockConfirm();
-  else closeSettings();
+  if (event.key === 'Escape') closeSettings();
 });
-
-authorHomeButton.addEventListener('click', handleAuthorHomeClick);
-videoCard.addEventListener('click', openFeaturedVideo);
 
 /* 三套音效都保留 da / gou / jiao 的语义位置，只替换实际播放采样。 */
 for (const option of sfxOptions) {
@@ -3497,8 +2987,7 @@ function handlePianoKeyDown(event) {
     event.ctrlKey ||
     event.altKey ||
     event.metaKey ||
-    settingsOpen ||
-    unlockConfirmOpen
+    settingsOpen
   ) return;
 
   if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {

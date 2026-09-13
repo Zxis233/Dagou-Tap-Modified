@@ -204,7 +204,6 @@ vm.runInNewContext(
   };
   const pointers = new Map();
   let settingsOpen = false;
-  let unlockConfirmOpen = false;
   let started = true;
   const buffers = { da: {} };
   const calls = [];
@@ -367,9 +366,9 @@ assert.match(
   'changing the active piano scale must settle held and queued input',
 );
 assert.match(
-  extractFunction('flushPianoOctaveCloudWrite'),
-  /while \(pendingPianoOctaveCloudValue !== null\)/,
-  'octave cloud writes must drain the latest pending value serially',
+  extractFunction('savePianoOctave'),
+  /persistSeenState/,
+  'octave changes must persist locally',
 );
 
 const octaveSandbox = {};
@@ -388,9 +387,9 @@ vm.runInNewContext(
   function applyPerformanceSettings(previous) {
     applied.push({ previous: previous.pianoOctaveStart, next: performanceSettings.pianoOctaveStart });
   }
-  function renderToyCloudState() {}
+  function renderSettingsState() {}
   function renderOctaveControls() {}
-  function queuePianoOctaveCloudWrite(octave) { queued.push(octave); }
+  function savePianoOctave(octave) { queued.push(octave); }
   ${extractFunction('normalizePianoOctaveStart')}
   ${extractFunction('octaveControlsEnabled')}
   ${extractFunction('shiftPianoOctave')}

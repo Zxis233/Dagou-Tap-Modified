@@ -6,7 +6,6 @@
 <meta name="theme-color" content="#fff2dc" />
 <title>大狗Tap</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐶</text></svg>" />
-<script src="//s1.hdslb.com/bfs/seed/toy/app/sdk/toy-sdk.js"></script>
 <style>
   /* 全页面限定调色板：米白底 + 主色黄 + 次色灰（极少点缀色） */
   :root {
@@ -494,8 +493,8 @@
     .settings-hint-bob { animation: none; }
   }
 
-  /* Toy SDK 状态提示：不打断演奏，也不会把点击穿透到舞台。 */
-  #toy-notice {
+  /* 页面状态提示：不打断演奏，也不会把点击穿透到舞台。 */
+  #app-notice {
     position: absolute;
     left: 50%;
     bottom: max(24px, calc(env(safe-area-inset-bottom) + 16px));
@@ -516,11 +515,11 @@
     transform: translate(-50%, 12px) scale(.98);
     transition: opacity .2s ease, transform .2s ease;
   }
-  #toy-notice.is-visible {
+  #app-notice.is-visible {
     opacity: 1;
     transform: translate(-50%, 0) scale(1);
   }
-  #toy-notice.is-error {
+  #app-notice.is-error {
     color: #9e4145;
     border-color: rgba(255, 90, 95, .72);
   }
@@ -837,98 +836,6 @@
     color: rgba(135, 131, 126, .78);
     text-transform: uppercase;
   }
-  #author-home-button {
-    min-width: 64px;
-    min-height: 38px;
-    padding: 6px 10px;
-    font-size: 12px;
-  }
-
-  /* 开发视频卡：16:9 封面 + 播放角标 + 标题 */
-  .video-card {
-    display: block;
-    width: 100%;
-    padding: 0;
-    border: none;
-    background: none;
-    text-align: left;
-    cursor: pointer;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .video-cover {
-    position: relative;
-    display: block;
-    aspect-ratio: 16 / 9;
-    overflow: hidden;
-    background: rgba(135, 131, 126, .35);
-    clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px),
-                       calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px);
-  }
-  .video-cover::before {
-    content: "";
-    position: absolute;
-    inset: 2px;
-    z-index: 1;
-    pointer-events: none;
-    clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px),
-                       calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
-  }
-  .video-cover img {
-    position: absolute;
-    inset: 2px;
-    width: calc(100% - 4px);
-    height: calc(100% - 4px);
-    object-fit: cover;
-    clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px),
-                       calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
-    transition: transform .35s ease;
-  }
-  .video-play {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    z-index: 2;
-    width: 46px;
-    height: 46px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 250, 240, .88);
-    clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
-    transform: translate(-50%, -50%) scale(var(--rhythm-scale, 1));
-    will-change: transform;
-  }
-  .video-play svg {
-    width: 20px;
-    height: 20px;
-    margin-left: 2px;
-    fill: var(--amber);
-    stroke: none;
-  }
-  .video-title {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
-    margin-top: 7px;
-    padding: 0 2px;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.5;
-    color: #6f6a63;
-    transition: color .2s ease;
-  }
-  @media (hover: hover) {
-    .video-card:hover .video-cover img { transform: scale(1.04); }
-    .video-card:hover .video-title { color: var(--amber); }
-  }
-  .video-card:focus-visible {
-    outline: 3px solid rgba(62, 123, 250, .38);
-    outline-offset: 2px;
-  }
-
-  /* 音效三选一：切角小卡，选中态描边变琥珀色 */
   .sfx-options {
     display: flex;
     gap: 10px;
@@ -970,12 +877,8 @@
     --btn-fill: rgba(255, 244, 224, .96);   /* 淡黄底 + 琥珀描边，呼应控制按钮的浅色语言 */
     color: #d88f00;
   }
-  .sfx-option.is-locked {
-    --btn-edge: rgba(135, 131, 126, .42);
-    --btn-fill: rgba(242, 239, 233, .94);
-  }
-  .sfx-option.is-locked .sfx-icon,
-  .sfx-option.is-locked .sfx-name { opacity: .52; }
+
+
   .sfx-status {
     position: absolute;
     top: 6px;
@@ -997,28 +900,8 @@
     letter-spacing: .08em;
     box-shadow: 0 2px 6px rgba(255, 90, 95, .28);
   }
-  .sfx-lock {
-    width: 19px;
-    height: 19px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #77736e;
-    background: rgba(255, 250, 240, .94);
-    border-radius: 50%;
-    box-shadow: 0 2px 6px rgba(135, 131, 126, .24);
-  }
-  .sfx-lock svg {
-    width: 11px;
-    height: 11px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2.2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .sfx-option:not(.is-locked) .sfx-lock,
-  .skin-option:not(.is-locked) .sfx-lock,
+
+
   .sfx-option.is-new-hidden .sfx-new,
   .skin-option.is-new-hidden .sfx-new { display: none; }
   .sfx-icon {
@@ -1119,11 +1002,8 @@
     --btn-edge: rgba(255, 180, 0, .92);
     --btn-fill: rgba(255, 244, 224, .96);   /* 与音效选中态同一语言：淡黄底 + 琥珀描边 */
   }
-  .skin-option.is-locked {
-    --btn-edge: rgba(135, 131, 126, .42);
-    --btn-fill: rgba(242, 239, 233, .94);
-  }
-  .skin-option.is-locked .skin-icon { opacity: .52; }
+
+
   .skin-icon {
     flex: none;
     width: 34px;
@@ -1157,150 +1037,15 @@
     line-height: 1.3;
     color: rgba(135, 131, 126, .82);
   }
-  .skin-option.is-locked .skin-hint { color: #b57e00; }
+
   .skin-option:active { transform: scale(.96); }
   .skin-option:focus-visible {
     outline: 3px solid rgba(62, 123, 250, .38);
     outline-offset: 2px;
   }
 
-  /* 已登录站内用户点击锁定项时的居中确认框。沿用设置面板的切角、米白底与琥珀色，
-     但层级更高，确保确认期间不会误触下方设置。 */
-  #unlock-confirm-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 70;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 22px;
-    background: rgba(111, 106, 99, .28);
-    backdrop-filter: blur(4px);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .22s ease;
-  }
-  #unlock-confirm-overlay.is-open {
-    opacity: 1;
-    pointer-events: auto;
-  }
-  #unlock-confirm-dialog {
-    position: relative;
-    isolation: isolate;
-    width: min(350px, 100%);
-    padding: 24px 22px 20px;
-    color: #6f6a63;
-    background: rgba(255, 180, 0, .78);
-    clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px),
-                       calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px);
-    filter: drop-shadow(0 18px 42px rgba(80, 76, 71, .3));
-    text-align: center;
-    transform: translateY(10px) scale(.96);
-    transition: transform .28s cubic-bezier(.2, .8, .2, 1);
-  }
-  #unlock-confirm-overlay.is-open #unlock-confirm-dialog {
-    transform: translateY(0) scale(1);
-  }
-  #unlock-confirm-dialog::before {
-    content: "";
-    position: absolute;
-    inset: 2px;
-    z-index: -1;
-    background: rgba(255, 250, 240, .98);
-    clip-path: polygon(16px 0, calc(100% - 16px) 0, 100% 16px, 100% calc(100% - 16px),
-                       calc(100% - 16px) 100%, 16px 100%, 0 calc(100% - 16px), 0 16px);
-  }
-  .unlock-confirm-icon {
-    width: 50px;
-    height: 50px;
-    margin: 0 auto 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fffaf0;
-    background: var(--amber);
-    clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px),
-                       calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
-    filter: drop-shadow(0 6px 12px rgba(255, 180, 0, .28));
-  }
-  .unlock-confirm-icon svg {
-    width: 26px;
-    height: 26px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .unlock-confirm-title {
-    color: var(--amber);
-    font-size: 20px;
-    font-weight: 900;
-    letter-spacing: .08em;
-  }
-  .unlock-confirm-message {
-    margin: 10px 2px 18px;
-    color: #77736e;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.65;
-  }
-  .unlock-confirm-actions {
-    display: grid;
-    grid-template-columns: .8fr 1.3fr;
-    gap: 10px;
-  }
-  .unlock-confirm-button {
-    position: relative;
-    isolation: isolate;
-    min-height: 44px;
-    padding: 9px 12px;
-    border: none;
-    color: #77736e;
-    background: rgba(135, 131, 126, .46);
-    clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px),
-                       calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
-    font: 750 13px/1.25 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-    cursor: pointer;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-    transition: transform .16s ease, background .2s ease;
-  }
-  .unlock-confirm-button::before {
-    content: "";
-    position: absolute;
-    inset: 2px;
-    z-index: -1;
-    background: rgba(255, 255, 255, .78);
-    clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px),
-                       calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
-  }
-  .unlock-confirm-button.is-primary {
-    color: #b57e00;
-    background: rgba(255, 180, 0, .9);
-  }
-  .unlock-confirm-button.is-primary::before { background: rgba(255, 244, 224, .98); }
-  @media (hover: hover) {
-    .unlock-confirm-button:hover { background: rgba(255, 180, 0, .7); }
-  }
-  .unlock-confirm-button:active { transform: scale(.96); }
-  .unlock-confirm-button:disabled {
-    opacity: .66;
-    cursor: wait;
-  }
-  .unlock-confirm-button:focus-visible {
-    outline: 3px solid rgba(62, 123, 250, .4);
-    outline-offset: 2px;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    #unlock-confirm-overlay,
-    #unlock-confirm-dialog { transition: none; }
-  }
-
   @media (max-width: 430px) {
     #settings-overlay { padding: 14px; }
-    #unlock-confirm-overlay { padding: 16px; }
-    #unlock-confirm-dialog { padding: 22px 17px 17px; }
     .settings-scroll { padding: 12px 13px 14px; }
     .author-avatar { width: 46px; height: 46px; }
     .author-id { font-size: 15px; }
@@ -1398,29 +1143,9 @@
               <span class="author-avatar"><img src="Image/creator-avatar.jpg" alt="马克杯MarkCup 的头像" draggable="false" /></span>
               <div class="author-info">
                 <div class="author-id">马克杯MarkCup</div>
-                <div class="author-sub">bilibili 创作者</div>
+                <div class="author-sub">大狗Tap 作者</div>
               </div>
-              <button id="author-home-button" class="control-button" type="button" aria-label="前往作者哔哩哔哩主页">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 11.5L12 4l8 7.5" />
-                  <path d="M6.5 10v9.5h11V10" />
-                </svg>
-                主页
-              </button>
             </div>
-          </section>
-
-          <section class="settings-section" aria-label="开发视频">
-            <div class="settings-label">开发视频 · Dev Video</div>
-            <button id="video-card" class="video-card" type="button" aria-label="打开视频：点击即玩世界上最爽的大狗叫模拟器">
-              <span class="video-cover">
-                <img src="Image/video.png" alt="开发视频封面" draggable="false" />
-                <span class="video-play" aria-hidden="true">
-                  <svg viewBox="0 0 24 24"><path d="M9 7l8 5-8 5z" /></svg>
-                </span>
-              </span>
-              <span class="video-title">点击即玩世界上最爽的大狗叫模拟器</span>
-            </button>
           </section>
 
           <section class="settings-section" aria-label="音效">
@@ -1430,10 +1155,9 @@
                 <span class="sfx-icon"><img src="Image/dagou_close_mouth.png" alt="" draggable="false" /></span>
                 <span class="sfx-name">大狗叫</span>
               </button>
-              <button class="sfx-option is-locked" type="button" role="radio" aria-checked="false" aria-label="叮咚鸡，未解锁" data-sfx="dingdong">
+              <button class="sfx-option" type="button" role="radio" aria-checked="false" aria-label="叮咚鸡" data-sfx="dingdong">
                 <span class="sfx-status" aria-hidden="true">
                   <span class="sfx-new">NEW</span>
-                  <span class="sfx-lock"><svg viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7" rx="2" /><path d="M5 7V5a3 3 0 016 0v2" /></svg></span>
                 </span>
                 <span class="sfx-icon">
                   <img src="Image/dingdongji_close_mouth.png" alt="" draggable="false" />
@@ -1458,15 +1182,14 @@
                       <span class="skin-hint">默认形象</span>
                     </span>
                   </button>
-                  <button class="skin-option is-locked" type="button" role="radio" aria-checked="false" aria-label="哈基米帝皇形象，投币开发视频解锁" data-skin="emperor">
+                  <button class="skin-option" type="button" role="radio" aria-checked="false" aria-label="哈基米帝皇形象" data-skin="emperor">
                     <span class="sfx-status" aria-hidden="true">
                       <span class="sfx-new">NEW</span>
-                      <span class="sfx-lock"><svg viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7" rx="2" /><path d="M5 7V5a3 3 0 016 0v2" /></svg></span>
                     </span>
                     <span class="skin-icon"><img src="Image/donghaidihuang_icon.webp" alt="" draggable="false" /></span>
                     <span class="skin-copy">
                       <span class="skin-name">帝皇</span>
-                      <span class="skin-hint">投币开发视频解锁</span>
+                      <span class="skin-hint">动态形象</span>
                     </span>
                   </button>
                 </div>
@@ -1506,30 +1229,13 @@
                 <span class="setting-switch" aria-hidden="true"></span>
               </button>
             </div>
-            <div id="performance-settings-status" role="status">正在读取哔哩哔哩云端设置…</div>
+            <div id="performance-settings-status" role="status">正在读取本地设置…</div>
           </section>
         </div>
       </div>
     </div>
 
-    <div id="unlock-confirm-overlay" aria-hidden="true" inert>
-      <div id="unlock-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="unlock-confirm-title" aria-describedby="unlock-confirm-message">
-        <div class="unlock-confirm-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24">
-            <rect x="5" y="10" width="14" height="10" rx="2" />
-            <path d="M8 10V7a4 4 0 018 0v3M11 14l4 2-4 2z" />
-          </svg>
-        </div>
-        <div class="unlock-confirm-title" id="unlock-confirm-title">解锁新内容</div>
-        <div class="unlock-confirm-message" id="unlock-confirm-message">给开发视频投币即可解锁，是否现在前往投币？</div>
-        <div class="unlock-confirm-actions">
-          <button class="unlock-confirm-button" id="unlock-confirm-cancel" type="button">暂不</button>
-          <button class="unlock-confirm-button is-primary" id="unlock-confirm-submit" type="button">前往视频投币</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="toy-notice" role="status" aria-live="assertive" aria-atomic="true" aria-hidden="true"></div>
+    <div id="app-notice" role="status" aria-live="assertive" aria-atomic="true" aria-hidden="true"></div>
 
     <div id="overlay">
       <div class="title">大狗<em>Tap</em></div>
@@ -1538,6 +1244,6 @@
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-  <script src="main.js?v=20260817-coin-errors"></script>
+  <script src="main.js?v=20260913-pages"></script>
 </body>
 </html>
